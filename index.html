@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Preference Ranker — A or B?</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="app-header">
+        <h1>🎉 Preference Ranker</h1>
+        <p class="tagline">Decide between A or B and discover your ultimate ranking!</p>
+      </header>
+
+      <!-- Step 1: Item Input -->
+      <section id="view-input" class="view active">
+        <div class="card input-card">
+          <h2>Enter your items</h2>
+          <p class="muted">One item per line. Minimum 2 items.</p>
+          <textarea id="items-text" placeholder="e.g.\nPizza\nSushi\nTacos\nBurgers\nSalad"></textarea>
+          <div class="controls">
+            <button id="btn-start" class="btn primary">Start Ranking 🚀</button>
+            <button id="btn-fill-sample" class="btn subtle">Fill with fun sample ✨</button>
+          </div>
+          <p id="input-error" class="error" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <!-- Step 2: Quiz -->
+      <section id="view-quiz" class="view">
+        <div class="progress-row">
+          <div class="progress-info">
+            <span id="compare-count">0</span> comparisons so far
+          </div>
+          <div class="progress-bar"><div id="progress-fill"></div></div>
+        </div>
+
+        <div class="arena">
+          <div class="choice-card" id="choice-a" tabindex="0">
+            <div class="label">A</div>
+            <div class="content" id="text-a"></div>
+            <button class="pick-btn" data-choice="a">Pick A</button>
+          </div>
+          <div class="vs">VS</div>
+          <div class="choice-card" id="choice-b" tabindex="0">
+            <div class="label">B</div>
+            <div class="content" id="text-b"></div>
+            <button class="pick-btn" data-choice="b">Pick B</button>
+          </div>
+        </div>
+
+        <div class="quiz-controls">
+          <button id="btn-choose-a" class="btn">⬅️ A</button>
+          <button id="btn-choose-b" class="btn">B ➡️</button>
+          <button id="btn-cancel" class="btn subtle">Restart 🔁</button>
+        </div>
+      </section>
+
+      <!-- Step 3: Results -->
+      <section id="view-results" class="view">
+        <div class="card results-card">
+          <h2>🏁 Your Ranking</h2>
+          <ol id="results-list" class="results-list"></ol>
+          <div class="results-meta">
+            <div><strong id="final-compare-count">0</strong> total comparisons</div>
+            <div class="downloads">
+              <button id="btn-download-log" class="btn">Download choices JSON ⬇️</button>
+            </div>
+          </div>
+          <div class="controls">
+            <button id="btn-restart" class="btn primary">Rank another list 🎯</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div id="confetti-root" aria-hidden="true"></div>
+
+    <footer class="app-footer">
+      <span>Made with 💖 — Use arrow keys to pick A/B</span>
+    </footer>
+
+    <script src="./app.js"></script>
+  </body>
+  </html>
+
+
