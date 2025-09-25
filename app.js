@@ -1,4 +1,4 @@
-// Preference Ranker — interactive merge sort with A/B choices
+// Preference Ranker — knockout comparisons with A/B choices
 
 /**
  * App State
@@ -6,15 +6,13 @@
 const state = {
   items: [],
   comparisonsMade: 0,
-  totalEstimatedComparisons: 0,
-  // Binary insertion interactive state
-  ranked: [],
-  currentIndex: 0, // index into items we are inserting
-  low: 0,
-  high: -1,
-  mid: -1,
-  // Choice log
+  totalComparisons: 0,
   choiceLog: [],
+  isAnimating: false,
+  champion: null,
+  challenger: null,
+  bench: [],
+  eliminated: [],
 };
 
 /** DOM Elements */
@@ -27,8 +25,13 @@ const btnStart = document.getElementById("btn-start");
 const btnFill = document.getElementById("btn-fill-sample");
 const inputError = document.getElementById("input-error");
 
+// Ensure multiline placeholder uses real line breaks (not literal "\n")
+textarea.placeholder = "e.g.\nPizza\nSushi\nTacos\nBurgers\nSalad";
+
 const textA = document.getElementById("text-a");
 const textB = document.getElementById("text-b");
+const cardA = document.getElementById("choice-a");
+const cardB = document.getElementById("choice-b");
 const btnChooseA = document.getElementById("btn-choose-a");
 const btnChooseB = document.getElementById("btn-choose-b");
 const btnCancel = document.getElementById("btn-cancel");
@@ -39,6 +42,7 @@ const resultsList = document.getElementById("results-list");
 const finalCompareCount = document.getElementById("final-compare-count");
 const btnRestart = document.getElementById("btn-restart");
 const btnDownloadLog = document.getElementById("btn-download-log");
+const arena = document.querySelector(".arena");
 
 /** Utilities */
 function setView(which) {
@@ -56,21 +60,24 @@ function parseItems(text) {
     .filter((value, index, self) => self.indexOf(value) === index); // dedupe
 }
 
-function estimateComparisons(n) {
-  // Sum of ceil(log2(k+1)) for k = 0..n-2 (worst-case comparisons per insertion)
-  if (n <= 1) return 0;
-  let sum = 0;
-  for (let k = 1; k <= n - 1; k++) {
-    sum += Math.ceil(Math.log2(k + 1));
-  }
-  return sum;
-}
-
 function updateProgress() {
   compareCount.textContent = String(state.comparisonsMade);
-  const denom = Math.max(1, state.totalEstimatedComparisons);
+  const denom = Math.max(1, state.totalComparisons);
   const pct = Math.min(100, Math.round((state.comparisonsMade / denom) * 100));
   progressFill.style.width = `${pct}%`;
+}
+
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
+
+function estimateKnockoutComparisons(n) {
+  // Rough upper bound: each item faces about log2(n) matches; keep for progress bar
+  if (n <= 1) return 0;
+  return Math.max(n - 1, Math.round(n * Math.log2(n) * 0.75));
 }
 
 function startConfetti() {
@@ -104,84 +111,95 @@ function startConfetti() {
   setTimeout(() => (root.innerHTML = ""), 6000);
 }
 
+function applyArenaTransition(exit, enter, next) {
+  if (!arena) {
+    next();
+    return;
+  }
+  arena.classList.remove("transition-in", "transition-out");
+  if (exit) {
+    arena.classList.add("transition-out");
+    setTimeout(() => {
+      arena.classList.remove("transition-out");
+      next();
+      if (enter) {
+        arena.classList.add("transition-in");
+        setTimeout(() => arena.classList.remove("transition-in"), 420);
+      }
+    }, 420);
+  } else {
+    next();
+    if (enter) {
+      arena.classList.add("transition-in");
+      setTimeout(() => arena.classList.remove("transition-in"), 420);
+    }
+  }
+}
+
 /** Interactive Binary Insertion Logic */
-function beginRanking() {
-  state.ranked = [];
-  state.currentIndex = 0;
-  state.low = 0;
-  state.high = -1;
-  state.mid = -1;
-  state.comparisonsMade = 0;
+function startKnockout(items) {
+  state.items = items.slice();
   state.choiceLog = [];
-  advanceToNextItem();
-}
-
-function advanceToNextItem() {
-  if (state.currentIndex >= state.items.length) {
-    return finishRanking(state.ranked.slice());
-  }
-  const currentItem = state.items[state.currentIndex];
-  if (state.ranked.length === 0) {
-    state.ranked.push(currentItem);
-    state.currentIndex++;
-    updateProgress();
-    return advanceToNextItem();
-  }
-  state.low = 0;
-  state.high = state.ranked.length - 1;
-  promptNextComparison();
-}
-
-function promptNextComparison() {
-  if (state.low > state.high) {
-    // Insert at position low
-    const item = state.items[state.currentIndex];
-    state.ranked.splice(state.low, 0, item);
-    state.currentIndex++;
-    updateProgress();
-    return advanceToNextItem();
-  }
-  state.mid = Math.floor((state.low + state.high) / 2);
-  // Show current item (A) vs candidate in ranked (B)
-  textA.textContent = state.items[state.currentIndex];
-  textB.textContent = state.ranked[state.mid];
+  state.champion = null;
+  state.challenger = null;
+  state.eliminated = [];
+  state.comparisonsMade = 0;
+  state.isAnimating = false;
+  state.bench = items.slice();
+  shuffle(state.bench);
+  // Seed champion with first item
+  state.champion = state.bench.shift();
+  state.challenger = state.bench.shift() ?? null;
   updateProgress();
+  showCurrentMatch();
 }
 
-function renderPair() {
-  // Repurpose: current item vs ranked[mid]
-  if (state.currentIndex < state.items.length && state.low <= state.high && state.mid >= 0) {
-    textA.textContent = state.items[state.currentIndex];
-    textB.textContent = state.ranked[state.mid];
-    updateProgress();
-  }
-}
+function beginRanking() {}
+function advanceToNextItem() {}
+function promptNextComparison() {}
+function renderPair() {}
 
 function choose(which) {
   if (!(which === "a" || which === "b")) return;
-  // Record current comparison
-  if (state.currentIndex < state.items.length && state.mid >= 0 && state.mid < state.ranked.length) {
-    const a = state.items[state.currentIndex];
-    const b = state.ranked[state.mid];
-    state.choiceLog.push({ a, b, chosen: which });
-    state.comparisonsMade++;
+  if (state.isAnimating) return;
+  if (!state.champion || !state.challenger) return;
+  state.isAnimating = true;
+
+  const winner = which === "a" ? state.champion : state.challenger;
+  const loser = which === "a" ? state.challenger : state.champion;
+
+  const chosenCard = which === "a" ? cardA : cardB;
+  const otherCard = which === "a" ? cardB : cardA;
+  if (chosenCard) {
+    chosenCard.classList.remove("card-grow");
+    void chosenCard.offsetWidth;
+    chosenCard.classList.add("card-grow");
   }
-  // If choose A => current item preferred over ranked[mid], search left half (towards front)
-  if (which === "a") {
-    state.high = state.mid - 1;
-  } else {
-    // choose B => existing ranked[mid] preferred, search right half
-    state.low = state.mid + 1;
+  if (otherCard) {
+    otherCard.classList.remove("card-fade");
+    void otherCard.offsetWidth;
+    otherCard.classList.add("card-fade");
   }
-  promptNextComparison();
+  if (arena) {
+    arena.classList.remove("fade-in");
+    arena.classList.add("fade-out");
+  }
+
+  setTimeout(() => {
+    if (chosenCard) chosenCard.classList.remove("card-grow");
+    if (otherCard) otherCard.classList.remove("card-fade");
+    if (arena) arena.classList.remove("fade-out");
+
+    advanceWinner(winner, loser);
+    state.isAnimating = false;
+    if (arena) {
+      arena.classList.add("fade-in");
+      setTimeout(() => arena.classList.remove("fade-in"), 450);
+    }
+  }, 1000);
 }
 
 // (No depositMerged in binary insertion)
-
-function finishRanking(finalRanking) {
-  const final = Array.isArray(finalRanking) ? finalRanking : state.ranked.slice();
-  renderResults(final);
-}
 
 function renderResults(finalRanking) {
   setView("results");
@@ -198,13 +216,13 @@ function renderResults(finalRanking) {
 function resetAll() {
   state.items = [];
   state.comparisonsMade = 0;
-  state.totalEstimatedComparisons = 0;
-  state.ranked = [];
-  state.currentIndex = 0;
-  state.low = 0;
-  state.high = -1;
-  state.mid = -1;
+  state.totalComparisons = 0;
   state.choiceLog = [];
+  state.champion = null;
+  state.challenger = null;
+  state.bench = [];
+  state.eliminated = [];
+  state.isAnimating = false;
   progressFill.style.width = "0%";
   compareCount.textContent = "0";
   textarea.value = "";
@@ -234,11 +252,9 @@ btnStart.addEventListener("click", () => {
     return;
   }
   inputError.textContent = "";
-  state.items = items;
-  state.totalEstimatedComparisons = estimateComparisons(items.length);
+  state.totalComparisons = estimateKnockoutComparisons(items.length);
   setView("quiz");
-  updateProgress();
-  beginRanking();
+  startKnockout(items);
 });
 
 document.querySelectorAll(".pick-btn").forEach((btn) => {
@@ -252,7 +268,7 @@ btnChooseB.addEventListener("click", () => choose("b"));
 
 // Keyboard shortcuts
 window.addEventListener("keydown", (e) => {
-  if (viewQuiz.classList.contains("active")) {
+  if (viewQuiz.classList.contains("active") && !state.isAnimating) {
     if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a") choose("a");
     if (e.key === "ArrowRight" || e.key.toLowerCase() === "b") choose("b");
   }
@@ -272,5 +288,47 @@ btnDownloadLog.addEventListener("click", () => {
   URL.revokeObjectURL(url);
   a.remove();
 });
+
+function showCurrentMatch() {
+  if (!state.champion || !state.challenger) {
+    if (state.champion && state.bench.length === 0) {
+      return finishKnockout();
+    }
+    if (!fillChallenger()) {
+      return finishKnockout();
+    }
+  }
+  textA.textContent = state.champion ?? "";
+  textB.textContent = state.challenger ?? "";
+  updateProgress();
+}
+
+function fillChallenger() {
+  if (state.bench.length === 0) return false;
+  state.challenger = state.bench.shift();
+  return true;
+}
+
+function advanceWinner(winner, loser) {
+  state.choiceLog.push({ champion: state.champion, challenger: state.challenger, winner });
+  state.comparisonsMade++;
+  if (winner === state.champion) {
+    state.eliminated.push(loser);
+    if (!fillChallenger()) {
+      state.challenger = null;
+    }
+  } else {
+    state.eliminated.push(state.champion);
+    state.champion = winner;
+    state.challenger = null;
+    fillChallenger();
+  }
+  showCurrentMatch();
+}
+
+function finishKnockout() {
+  const ranking = [state.champion, ...state.eliminated].filter(Boolean);
+  renderResults(ranking);
+}
 
 
